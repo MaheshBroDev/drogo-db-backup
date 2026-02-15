@@ -19,15 +19,15 @@ fi
 
 echo "Detected OS: $OS"
 
-# Find suitable Python version (3.7+)
+# Find suitable Python version (3.5+)
 PYTHON_CMD=""
-for cmd in python3.11 python3.10 python3.9 python3.8 python3.7 python3; do
+for cmd in python3.11 python3.10 python3.9 python3.8 python3.7 python3.6 python3.5 python3; do
     if command -v $cmd &> /dev/null; then
         VERSION=$($cmd -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
         MAJOR=$(echo $VERSION | cut -d. -f1)
         MINOR=$(echo $VERSION | cut -d. -f2)
         
-        if [ "$MAJOR" -ge 3 ] && [ "$MINOR" -ge 7 ]; then
+        if [ "$MAJOR" -ge 3 ] && [ "$MINOR" -ge 5 ]; then
             PYTHON_CMD=$cmd
             echo "Found suitable Python: $cmd (version $VERSION)"
             break
@@ -36,17 +36,12 @@ for cmd in python3.11 python3.10 python3.9 python3.8 python3.7 python3; do
 done
 
 if [ -z "$PYTHON_CMD" ]; then
-    echo "Error: Python 3.7 or higher is required."
+    echo "Error: Python 3.5 or higher is required."
     echo "Current Python version is too old."
     echo ""
     if [ "$OS" = "linux" ]; then
-        echo "Install Python 3.7+ on Ubuntu 16.04:"
-        echo "  sudo apt-get install software-properties-common"
-        echo "  sudo add-apt-repository ppa:deadsnakes/ppa"
+        echo "Install Python 3 on Ubuntu/Debian:"
         echo "  sudo apt-get update"
-        echo "  sudo apt-get install python3.7 python3.7-venv python3.7-dev"
-        echo ""
-        echo "Or on Ubuntu 18.04+:"
         echo "  sudo apt-get install python3 python3-pip python3-venv"
     elif [ "$OS" = "macos" ]; then
         echo "Install with: brew install python3"
@@ -100,7 +95,7 @@ if [ ! -d "venv" ]; then
         if [ "$OS" = "linux" ]; then
             echo "Please install required packages:"
             echo "  sudo apt-get update"
-            echo "  sudo apt-get install python3.7 python3.7-pip python3.7-venv"
+            echo "  sudo apt-get install python3 python3-pip python3-venv"
             echo ""
             echo "Or install virtualenv manually:"
             echo "  $PYTHON_CMD -m pip install --user virtualenv"

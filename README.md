@@ -13,16 +13,14 @@ Automated MySQL database backup script that compresses the backup, uploads it to
 
 ## Prerequisites
 
-- Python 3.7 or higher (required for mega.py library)
+- Python 3.5 or higher
 - MySQL client tools (mysqldump)
 - Mega account
 - Email account (Gmail recommended with app password)
 
-**Note:** Ubuntu 16.04 ships with Python 3.5. You'll need to install Python 3.7+ separately.
-
 ## Installation
 
-### Linux/macOS (All versions including Ubuntu 18.04+, Debian, CentOS)
+### Linux/macOS (All versions including Ubuntu 16.04+, Debian, CentOS)
 
 1. Clone or download this project
 2. Copy the example environment file:
@@ -42,21 +40,7 @@ Automated MySQL database backup script that compresses the backup, uploads it to
    bash setup_and_run.sh
    ```
 
-**Ubuntu 16.04 Users:** The default Python 3.5 is too old. Install Python 3.7+:
-```bash
-sudo apt-get update
-sudo apt-get install software-properties-common
-sudo add-apt-repository ppa:deadsnakes/ppa
-sudo apt-get update
-sudo apt-get install python3.7 python3.7-venv python3.7-dev
-sudo apt-get install mysql-client
-
-# Use Python 3.7 explicitly
-python3.7 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python backup_mysql.py
-```
+**Note:** Works with Python 3.5+ (Ubuntu 16.04 default Python 3.5.2 is supported)
 
 ### Windows
 
@@ -140,30 +124,17 @@ Add to crontab (`crontab -e`):
 
 ## Troubleshooting
 
-### Python version too old
-If you see "future import annotations is not defined" or "Python 3.7+ required":
-```bash
-# Ubuntu 16.04 - Install Python 3.7+
-sudo apt-get install software-properties-common
-sudo add-apt-repository ppa:deadsnakes/ppa
-sudo apt-get update
-sudo apt-get install python3.7 python3.7-venv python3.7-dev
-
-# Then run setup again
-bash setup_and_run.sh
-```
-
 ### Virtual environment issues
 If you see "venv/bin/activate not found" or venv creation fails:
 ```bash
 # Remove incomplete venv
 rm -rf venv
 
-# Install required packages
+# Install required packages (Ubuntu 16.04+)
 sudo apt-get update
-sudo apt-get install python3.7 python3.7-pip python3.7-venv
+sudo apt-get install python3 python3-pip python3-venv
 
-# The script will automatically detect Python 3.7+
+# The script will automatically detect Python 3.5+
 bash setup_and_run.sh
 ```
 
