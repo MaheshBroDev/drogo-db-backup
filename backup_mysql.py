@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 MySQL Database Backup Script
-Backs up MySQL database, compresses it, uploads to Mega, and sends email notification
+Backs up MySQL database, compresses it, uploads to cloud storage via rclone, and sends email notification
 Compatible with Python 3.5+
 """
 
@@ -14,12 +14,6 @@ from email.mime.multipart import MIMEMultipart
 import gzip
 import shutil
 import sys
-import json
-import base64
-import requests
-from Crypto.Cipher import AES
-from Crypto.Util import Counter
-import struct
 
 # Configuration
 DB_HOST = os.getenv('DB_HOST', 'localhost')
@@ -27,9 +21,10 @@ DB_USER = os.getenv('DB_USER', 'root')
 DB_PASSWORD = os.getenv('DB_PASSWORD', '')
 DB_NAME = os.getenv('DB_NAME', 'mydatabase')
 
-MEGA_EMAIL = os.getenv('MEGA_EMAIL', '')
-MEGA_PASSWORD = os.getenv('MEGA_PASSWORD', '')
+# Rclone configuration
+RCLONE_REMOTE = os.getenv('RCLONE_REMOTE', 'mega:backups')  # e.g., 'mega:backups' or 'gdrive:backups'
 
+# Email configuration
 SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
 SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
 EMAIL_FROM = os.getenv('EMAIL_FROM', '')
@@ -85,167 +80,54 @@ def compress_backup(backup_file):
     return compressed_file
 
 
-class SimpleMegaUploader:
-    """Simple Mega.nz uploader compatible with Python 3.5+"""
-    
-    def __init__(self):
-        self.api_url = 'https://g.api.mega.co.nz/cs'
-        self.sid = None
-        self.sequence_num = 0
-        
-    def _api_request(self, data):
-        """Make API request to Mega"""
-        params = {'id': self.sequence_num}
-        self.sequence_num += 1
-        
-        if self.sid:
-            params['sid'] = self.sid
-            
-        response = requests.post(
-            self.api_url,
-            params=params,
-            data=json.dumps([data]),
-            timeout=300
-        )
-        
-        result = response.json()
-        if isinstance(result, list) and len(result) > 0:
-            return result[0]
-        return result
-    
-    def _prepare_key(self, password):
-        """Prepare encryption key from password"""
-        key = bytes([0x93, 0xC4, 0x67, 0xE3, 0x7D, 0xB0, 0xC7, 0xA4,
-                     0xD1, 0xBE, 0x3F, 0x81, 0x01, 0x52, 0xCB, 0x56])
-        
-        password_bytes = password.encode('utf-8')
-        
-        for _ in range(65536):
-            cipher = AES.new(key, AES.MODE_ECB)
-            for i in range(0, len(password_bytes), 16):
-                chunk = password_bytes[i:i+16]
-                if len(chunk) < 16:
-                    chunk = chunk + bytes(16 - len(chunk))
-                key = cipher.encrypt(chunk)
-        
-        return key
-    
-    def _base64_encode(self, data):
-        """Mega-specific base64 encoding"""
-        b64 = base64.b64encode(data).decode('utf-8')
-        return b64.replace('+', '-').replace('/', '_').replace('=', '')
-    
-    def _base64_decode(self, data):
-        """Mega-specific base64 decoding"""
-        data = data.replace('-', '+').replace('_', '/')
-        data += '=' * (4 - len(data) % 4)
-        return base64.b64decode(data)
-    
-    def login(self, email, password):
-        """Login to Mega"""
-        print("Logging in to Mega...")
-        
-        password_key = self._prepare_key(password)
-        uh = self._base64_encode(password_key)
-        
-        result = self._api_request({
-            'a': 'us',
-            'user': email,
-            'uh': uh
-        })
-        
-        if isinstance(result, int) and result < 0:
-            raise Exception("Login failed with error code: {}".format(result))
-        
-        self.sid = result.get('csid') or result.get('tsid')
-        if not self.sid:
-            raise Exception("Login failed: No session ID received")
-        
-        print("Login successful!")
+def check_rclone():
+    """Check if rclone is installed"""
+    try:
+        subprocess.run(['rclone', 'version'], 
+                      stdout=subprocess.PIPE, 
+                      stderr=subprocess.PIPE, 
+                      check=True)
         return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+
+def upload_to_cloud(file_path):
+    """Upload file to cloud storage using rclone"""
+    print("Uploading to cloud storage via rclone...")
     
-    def upload(self, file_path):
-        """Upload file to Mega"""
-        print("Preparing upload for {}...".format(file_path))
-        
-        # Get upload URL
-        file_size = os.path.getsize(file_path)
-        result = self._api_request({
-            'a': 'u',
-            's': file_size
-        })
-        
-        upload_url = result.get('p')
-        if not upload_url:
-            raise Exception("Failed to get upload URL")
-        
-        # Generate random encryption key
-        file_key = os.urandom(16)
-        iv = file_key[0:8] + bytes(8)
-        
-        # Upload file with encryption
-        print("Uploading file ({} bytes)...".format(file_size))
-        
-        with open(file_path, 'rb') as f:
-            file_data = f.read()
-        
-        # Encrypt file data - convert IV to integer for Counter
-        iv_int = struct.unpack('>QQ', iv)[0] << 64 | struct.unpack('>QQ', iv)[1]
-        counter = Counter.new(128, initial_value=iv_int)
-        cipher = AES.new(file_key, AES.MODE_CTR, counter=counter)
-        encrypted_data = cipher.encrypt(file_data)
-        
-        # Upload encrypted data
-        response = requests.post(upload_url, data=encrypted_data, timeout=600)
-        completion_handle = response.text
-        
-        # Complete upload
-        file_name = os.path.basename(file_path)
-        attributes = {'n': file_name}
-        attr_str = json.dumps(attributes)
-        
-        # Encrypt attributes
-        attr_cipher = AES.new(file_key, AES.MODE_CBC, iv)
-        attr_data = attr_str.encode('utf-8')
-        attr_data += bytes(16 - len(attr_data) % 16)
-        encrypted_attr = attr_cipher.encrypt(attr_data)
-        
-        # Create file node
-        meta_mac = bytes(8)  # Simplified MAC
-        key_data = file_key + meta_mac
-        
-        result = self._api_request({
-            'a': 'p',
-            't': None,  # Root folder
-            'n': [{
-                'h': completion_handle,
-                't': 0,
-                'a': self._base64_encode(encrypted_attr),
-                'k': self._base64_encode(key_data)
-            }]
-        })
-        
-        if isinstance(result, int) and result < 0:
-            raise Exception("Upload completion failed with error: {}".format(result))
-        
-        file_handle = result['f'][0]['h']
-        file_key_b64 = self._base64_encode(file_key)
-        
-        link = "https://mega.nz/file/{}#{}".format(file_handle, file_key_b64)
+    if not check_rclone():
+        raise Exception("rclone is not installed. Please install rclone first.")
+    
+    file_name = os.path.basename(file_path)
+    remote_path = "{}/{}".format(RCLONE_REMOTE, file_name)
+    
+    print("Uploading {} to {}...".format(file_name, RCLONE_REMOTE))
+    
+    cmd = ['rclone', 'copy', file_path, RCLONE_REMOTE, '-P']
+    
+    try:
+        result = subprocess.run(cmd, check=True, stderr=subprocess.PIPE)
         print("Upload complete!")
         
-        return link
-
-
-def upload_to_mega(file_path):
-    """Upload file to Mega cloud storage"""
-    print("Uploading to Mega...")
-    
-    uploader = SimpleMegaUploader()
-    uploader.login(MEGA_EMAIL, MEGA_PASSWORD)
-    link = uploader.upload(file_path)
-    
-    return link
+        # Generate link (for supported remotes)
+        link_cmd = ['rclone', 'link', remote_path]
+        try:
+            link_result = subprocess.run(
+                link_cmd, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.PIPE,
+                check=True
+            )
+            link = link_result.stdout.decode('utf-8').strip()
+            return link
+        except subprocess.CalledProcessError:
+            # If link generation fails, return the remote path
+            return "File uploaded to: {}".format(remote_path)
+            
+    except subprocess.CalledProcessError as e:
+        error_msg = e.stderr.decode('utf-8') if e.stderr else str(e)
+        raise Exception("Upload failed: {}".format(error_msg))
 
 
 def send_email(backup_link, backup_file):
@@ -264,7 +146,7 @@ def send_email(backup_link, backup_file):
     Backup File: {}
     Timestamp: {}
     
-    Download Link (Mega):
+    Cloud Storage Location:
     {}
     
     This is an automated backup notification.
@@ -303,7 +185,7 @@ def main():
         create_backup_dir()
         backup_file = backup_database()
         compressed_file = compress_backup(backup_file)
-        backup_link = upload_to_mega(compressed_file)
+        backup_link = upload_to_cloud(compressed_file)
         send_email(backup_link, compressed_file)
         
         print("=" * 50)

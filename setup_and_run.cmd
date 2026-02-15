@@ -105,6 +105,20 @@ if not exist ".env" (
     exit /b 1
 )
 
+REM Check if rclone is available
+where rclone >nul 2>&1
+if errorlevel 1 (
+    echo Warning: rclone not found in PATH.
+    echo Please install rclone from: https://rclone.org/downloads/
+    echo Or use: choco install rclone
+    call venv\Scripts\deactivate.bat
+    pause
+    exit /b 1
+)
+
+echo rclone found:
+rclone version
+
 REM Check if mysqldump is available
 where mysqldump >nul 2>&1
 if errorlevel 1 (

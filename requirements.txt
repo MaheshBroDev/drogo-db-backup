@@ -1,2 +1,1 @@
-requests>=2.20.0
-pycryptodome>=3.9.0
+# No Python dependencies required - uses rclone binary

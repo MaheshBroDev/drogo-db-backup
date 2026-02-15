@@ -141,6 +141,17 @@ fi
 # Load environment variables
 export $(cat .env | grep -v '^#' | xargs)
 
+# Check if rclone is available
+if ! command -v rclone &> /dev/null; then
+    echo "Warning: rclone not found. Please install rclone."
+    echo "  Install: curl https://rclone.org/install.sh | sudo bash"
+    echo "  Or visit: https://rclone.org/downloads/"
+    deactivate
+    exit 1
+fi
+
+echo "rclone found: $(rclone version | head -n 1)"
+
 # Check if mysqldump is available
 if ! command -v mysqldump &> /dev/null; then
     echo "Warning: mysqldump not found. Please install MySQL client tools."
