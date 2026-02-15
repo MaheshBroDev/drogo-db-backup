@@ -20,32 +20,7 @@ Automated MySQL database backup script that compresses the backup, uploads it to
 
 ## Installation
 
-### Ubuntu 16.04 (Recommended for older systems)
-
-1. Clone or download this project
-2. Install system dependencies (requires sudo):
-   ```bash
-   chmod +x install_dependencies_ubuntu16.sh
-   sudo bash install_dependencies_ubuntu16.sh
-   ```
-3. Copy the example environment file:
-   ```bash
-   cp .env.example .env
-   ```
-4. Edit `.env` with your configuration:
-   ```bash
-   nano .env
-   ```
-5. Make scripts executable:
-   ```bash
-   chmod +x setup_ubuntu16.sh run_backup.sh
-   ```
-6. Run the setup and backup:
-   ```bash
-   bash setup_ubuntu16.sh
-   ```
-
-### Linux/macOS (Modern systems)
+### Linux/macOS (All versions including Ubuntu 14.04+, Debian, CentOS)
 
 1. Clone or download this project
 2. Copy the example environment file:
@@ -64,6 +39,12 @@ Automated MySQL database backup script that compresses the backup, uploads it to
    ```bash
    bash setup_and_run.sh
    ```
+
+**Note for older systems (Ubuntu 16.04 or earlier):** If you get errors, install these packages first:
+```bash
+sudo apt-get update
+sudo apt-get install python3 python3-pip python3-venv mysql-client
+```
 
 ### Windows
 
@@ -112,25 +93,18 @@ For Gmail, you need to use an App Password:
 
 ## Manual Usage
 
-If you want to run the script manually:
+If you want to run the script manually after initial setup:
 
 ```bash
-# Activate virtual environment
-source venv/bin/activate  # Linux/macOS
-venv\Scripts\activate.bat  # Windows
-
-# Run the backup script
+# Linux/macOS
+source venv/bin/activate
 python backup_mysql.py
-
-# Deactivate virtual environment
 deactivate
-```
 
-### Quick Backup (After Initial Setup)
-
-For Ubuntu 16.04, use the simplified run script:
-```bash
-bash run_backup.sh
+# Windows
+venv\Scripts\activate.bat
+python backup_mysql.py
+deactivate
 ```
 
 ## Scheduling Backups
@@ -139,10 +113,7 @@ bash run_backup.sh
 
 Add to crontab (`crontab -e`):
 ```bash
-# Daily backup at 2 AM (Ubuntu 16.04)
-0 2 * * * cd /path/to/backup/script && bash run_backup.sh >> backup.log 2>&1
-
-# Or for modern systems
+# Daily backup at 2 AM
 0 2 * * * cd /path/to/backup/script && bash setup_and_run.sh >> backup.log 2>&1
 ```
 
@@ -157,27 +128,28 @@ Add to crontab (`crontab -e`):
 
 ## Troubleshooting
 
-### Virtual environment issues on Ubuntu 16.04
-If you see "venv/bin/activate not found":
+### Virtual environment issues
+If you see "venv/bin/activate not found" or venv creation fails:
 ```bash
 # Remove incomplete venv
 rm -rf venv
 
 # Install required packages
+# Ubuntu/Debian:
 sudo apt-get update
-sudo apt-get install python3-venv python3-pip
+sudo apt-get install python3 python3-pip python3-venv
 
-# Or use virtualenv
+# The script will automatically try virtualenv as fallback
+# Or install manually:
 pip3 install --user virtualenv
-~/.local/bin/virtualenv -p python3 venv
 
 # Then run setup again
-bash setup_ubuntu16.sh
+bash setup_and_run.sh
 ```
 
 ### mysqldump not found
-- **Ubuntu 16.04**: `sudo apt-get install mysql-client`
 - **Ubuntu/Debian**: `sudo apt-get install mysql-client`
+- **CentOS/RHEL**: `sudo yum install mysql`
 - **macOS**: `brew install mysql-client`
 - **Windows**: Install MySQL and add to PATH
 

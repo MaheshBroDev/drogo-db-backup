@@ -1,31 +1,67 @@
 @echo off
-REM MySQL Backup Script Setup and Run (Windows)
+REM Universal MySQL Backup Script Setup and Run (Windows)
 
 echo ==========================================
 echo MySQL Backup Setup and Execution
 echo ==========================================
 
-REM Check if Python is installed
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo Error: Python is not installed or not in PATH.
-    echo Please install Python 3 from https://www.python.org/downloads/
-    pause
-    exit /b 1
+REM Check if Python is installed (try python3 first, then python)
+python3 --version >nul 2>&1
+if not errorlevel 1 (
+    set PYTHON_CMD=python3
+    goto :python_found
 )
 
-echo Python found:
-python --version
+python --version >nul 2>&1
+if not errorlevel 1 (
+    set PYTHON_CMD=python
+    goto :python_found
+)
 
-REM Check if venv exists
+echo Error: Python is not installed or not in PATH.
+echo Please install Python 3 from https://www.python.org/downloads/
+echo Make sure to check "Add Python to PATH" during installation.
+pause
+exit /b 1
+
+:python_found
+echo Python found:
+%PYTHON_CMD% --version
+
+REM Remove incomplete venv if exists
+if exist "venv" (
+    if not exist "venv\Scripts\activate.bat" (
+        echo Removing incomplete virtual environment...
+        rmdir /s /q venv
+    )
+)
+
+REM Create virtual environment
 if not exist "venv" (
     echo Creating virtual environment...
-    python -m venv venv
+    %PYTHON_CMD% -m venv venv
+    
     if errorlevel 1 (
         echo Error: Failed to create virtual environment.
+        echo.
+        echo Trying alternative method with virtualenv...
+        %PYTHON_CMD% -m pip install --user virtualenv
+        %PYTHON_CMD% -m virtualenv venv
+        
+        if errorlevel 1 (
+            echo Error: Could not create virtual environment.
+            echo Please ensure Python is properly installed.
+            pause
+            exit /b 1
+        )
+    )
+    
+    if not exist "venv\Scripts\activate.bat" (
+        echo Error: Virtual environment created but activate.bat is missing.
         pause
         exit /b 1
     )
+    
     echo Virtual environment created successfully.
 ) else (
     echo Virtual environment already exists.
@@ -34,6 +70,12 @@ if not exist "venv" (
 REM Activate virtual environment
 echo Activating virtual environment...
 call venv\Scripts\activate.bat
+
+if errorlevel 1 (
+    echo Error: Failed to activate virtual environment.
+    pause
+    exit /b 1
+)
 
 REM Upgrade pip
 echo Upgrading pip...
