@@ -2,6 +2,8 @@
 
 Automated MySQL database backup script that compresses the backup, uploads it to cloud storage via rclone, and sends an email notification with the location.
 
+**Optimized for Mega.nz storage** - See [MEGA_SETUP.md](MEGA_SETUP.md) for detailed Mega configuration guide.
+
 ## Features
 
 - MySQL database backup using mysqldump
