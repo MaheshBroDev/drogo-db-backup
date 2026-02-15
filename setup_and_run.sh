@@ -17,9 +17,35 @@ echo "Python 3 found: $(python3 --version)"
 # Check if venv exists
 if [ ! -d "venv" ]; then
     echo "Creating virtual environment..."
-    python3 -m venv venv
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to create virtual environment."
+    
+    # Try virtualenv first (more reliable on older systems)
+    if command -v virtualenv &> /dev/null; then
+        virtualenv -p python3 venv
+    else
+        # Try python3 -m venv
+        python3 -m venv venv
+        
+        # If venv creation failed or activate script missing, try installing python3-venv
+        if [ ! -f "venv/bin/activate" ]; then
+            echo "venv module not fully installed. Attempting to install python3-venv..."
+            echo "You may need to run: sudo apt-get install python3-venv python3-pip"
+            
+            # Try with virtualenv as fallback
+            if command -v pip3 &> /dev/null; then
+                echo "Installing virtualenv..."
+                pip3 install --user virtualenv
+                ~/.local/bin/virtualenv -p python3 venv
+            fi
+        fi
+    fi
+    
+    if [ ! -f "venv/bin/activate" ]; then
+        echo "Error: Failed to create virtual environment with activate script."
+        echo "Please install python3-venv or virtualenv:"
+        echo "  sudo apt-get update"
+        echo "  sudo apt-get install python3-venv python3-pip"
+        echo "Or install virtualenv:"
+        echo "  pip3 install --user virtualenv"
         exit 1
     fi
     echo "Virtual environment created successfully."
@@ -29,7 +55,13 @@ fi
 
 # Activate virtual environment
 echo "Activating virtual environment..."
-source venv/bin/activate
+if [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
+else
+    echo "Error: venv/bin/activate not found."
+    echo "Please delete the venv folder and run this script again."
+    exit 1
+fi
 
 # Upgrade pip
 echo "Upgrading pip..."

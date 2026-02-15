@@ -20,7 +20,32 @@ Automated MySQL database backup script that compresses the backup, uploads it to
 
 ## Installation
 
-### Linux/macOS
+### Ubuntu 16.04 (Recommended for older systems)
+
+1. Clone or download this project
+2. Install system dependencies (requires sudo):
+   ```bash
+   chmod +x install_dependencies_ubuntu16.sh
+   sudo bash install_dependencies_ubuntu16.sh
+   ```
+3. Copy the example environment file:
+   ```bash
+   cp .env.example .env
+   ```
+4. Edit `.env` with your configuration:
+   ```bash
+   nano .env
+   ```
+5. Make scripts executable:
+   ```bash
+   chmod +x setup_ubuntu16.sh run_backup.sh
+   ```
+6. Run the setup and backup:
+   ```bash
+   bash setup_ubuntu16.sh
+   ```
+
+### Linux/macOS (Modern systems)
 
 1. Clone or download this project
 2. Copy the example environment file:
@@ -37,7 +62,7 @@ Automated MySQL database backup script that compresses the backup, uploads it to
    ```
 5. Run the setup and backup:
    ```bash
-   ./setup_and_run.sh
+   bash setup_and_run.sh
    ```
 
 ### Windows
@@ -101,14 +126,24 @@ python backup_mysql.py
 deactivate
 ```
 
+### Quick Backup (After Initial Setup)
+
+For Ubuntu 16.04, use the simplified run script:
+```bash
+bash run_backup.sh
+```
+
 ## Scheduling Backups
 
 ### Linux/macOS (cron)
 
-Add to crontab:
+Add to crontab (`crontab -e`):
 ```bash
-# Daily backup at 2 AM
-0 2 * * * cd /path/to/backup/script && ./setup_and_run.sh >> backup.log 2>&1
+# Daily backup at 2 AM (Ubuntu 16.04)
+0 2 * * * cd /path/to/backup/script && bash run_backup.sh >> backup.log 2>&1
+
+# Or for modern systems
+0 2 * * * cd /path/to/backup/script && bash setup_and_run.sh >> backup.log 2>&1
 ```
 
 ### Windows (Task Scheduler)
@@ -122,8 +157,27 @@ Add to crontab:
 
 ## Troubleshooting
 
+### Virtual environment issues on Ubuntu 16.04
+If you see "venv/bin/activate not found":
+```bash
+# Remove incomplete venv
+rm -rf venv
+
+# Install required packages
+sudo apt-get update
+sudo apt-get install python3-venv python3-pip
+
+# Or use virtualenv
+pip3 install --user virtualenv
+~/.local/bin/virtualenv -p python3 venv
+
+# Then run setup again
+bash setup_ubuntu16.sh
+```
+
 ### mysqldump not found
-- **Linux**: `sudo apt-get install mysql-client`
+- **Ubuntu 16.04**: `sudo apt-get install mysql-client`
+- **Ubuntu/Debian**: `sudo apt-get install mysql-client`
 - **macOS**: `brew install mysql-client`
 - **Windows**: Install MySQL and add to PATH
 
