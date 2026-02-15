@@ -18,10 +18,8 @@ import json
 import base64
 import requests
 from Crypto.Cipher import AES
-from Crypto.PublicKey import RSA
 from Crypto.Util import Counter
 import struct
-import binascii
 
 # Configuration
 DB_HOST = os.getenv('DB_HOST', 'localhost')
@@ -43,46 +41,47 @@ BACKUP_DIR = os.getenv('BACKUP_DIR', './backups')
 
 def create_backup_dir():
     """Create backup directory if it doesn't exist"""
-    Path(BACKUP_DIR).mkdir(parents=True, exist_ok=True)
+    if not os.path.exists(BACKUP_DIR):
+        os.makedirs(BACKUP_DIR)
 
 
 def backup_database():
     """Backup MySQL database using mysqldump"""
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    backup_file = f"{BACKUP_DIR}/{DB_NAME}_{timestamp}.sql"
+    backup_file = "{}/{}_{}.sql".format(BACKUP_DIR, DB_NAME, timestamp)
     
-    print(f"Creating backup of database '{DB_NAME}'...")
+    print("Creating backup of database '{}'...".format(DB_NAME))
     
     cmd = [
         'mysqldump',
-        f'-h{DB_HOST}',
-        f'-u{DB_USER}',
-        f'-p{DB_PASSWORD}',
+        '-h{}'.format(DB_HOST),
+        '-u{}'.format(DB_USER),
+        '-p{}'.format(DB_PASSWORD),
         DB_NAME
     ]
     
     try:
         with open(backup_file, 'w') as f:
             subprocess.run(cmd, stdout=f, check=True, stderr=subprocess.PIPE)
-        print(f"Backup created: {backup_file}")
+        print("Backup created: {}".format(backup_file))
         return backup_file
     except subprocess.CalledProcessError as e:
-        print(f"Error creating backup: {e.stderr.decode()}")
+        print("Error creating backup: {}".format(e.stderr.decode()))
         raise
 
 
 def compress_backup(backup_file):
     """Compress backup file using gzip"""
-    compressed_file = f"{backup_file}.gz"
+    compressed_file = "{}.gz".format(backup_file)
     
-    print(f"Compressing backup...")
+    print("Compressing backup...")
     
     with open(backup_file, 'rb') as f_in:
         with gzip.open(compressed_file, 'wb') as f_out:
             shutil.copyfileobj(f_in, f_out)
     
     os.remove(backup_file)
-    print(f"Compressed backup: {compressed_file}")
+    print("Compressed backup: {}".format(compressed_file))
     return compressed_file
 
 
@@ -131,11 +130,6 @@ class SimpleMegaUploader:
         
         return key
     
-    def _encrypt_key(self, key, data):
-        """Encrypt data with key"""
-        cipher = AES.new(key, AES.MODE_ECB)
-        return cipher.encrypt(data)
-    
     def _base64_encode(self, data):
         """Mega-specific base64 encoding"""
         b64 = base64.b64encode(data).decode('utf-8')
@@ -161,7 +155,7 @@ class SimpleMegaUploader:
         })
         
         if isinstance(result, int) and result < 0:
-            raise Exception(f"Login failed with error code: {result}")
+            raise Exception("Login failed with error code: {}".format(result))
         
         self.sid = result.get('csid') or result.get('tsid')
         if not self.sid:
@@ -172,7 +166,7 @@ class SimpleMegaUploader:
     
     def upload(self, file_path):
         """Upload file to Mega"""
-        print(f"Preparing upload for {file_path}...")
+        print("Preparing upload for {}...".format(file_path))
         
         # Get upload URL
         file_size = os.path.getsize(file_path)
@@ -190,13 +184,14 @@ class SimpleMegaUploader:
         iv = file_key[0:8] + bytes(8)
         
         # Upload file with encryption
-        print(f"Uploading file ({file_size} bytes)...")
+        print("Uploading file ({} bytes)...".format(file_size))
         
         with open(file_path, 'rb') as f:
             file_data = f.read()
         
-        # Encrypt file data
-        counter = Counter.new(128, initial_value=int.from_bytes(iv, 'big'))
+        # Encrypt file data - convert IV to integer for Counter
+        iv_int = struct.unpack('>QQ', iv)[0] << 64 | struct.unpack('>QQ', iv)[1]
+        counter = Counter.new(128, initial_value=iv_int)
         cipher = AES.new(file_key, AES.MODE_CTR, counter=counter)
         encrypted_data = cipher.encrypt(file_data)
         
@@ -231,20 +226,20 @@ class SimpleMegaUploader:
         })
         
         if isinstance(result, int) and result < 0:
-            raise Exception(f"Upload completion failed with error: {result}")
+            raise Exception("Upload completion failed with error: {}".format(result))
         
         file_handle = result['f'][0]['h']
         file_key_b64 = self._base64_encode(file_key)
         
-        link = f"https://mega.nz/file/{file_handle}#{file_key_b64}"
-        print(f"Upload complete!")
+        link = "https://mega.nz/file/{}#{}".format(file_handle, file_key_b64)
+        print("Upload complete!")
         
         return link
 
 
 def upload_to_mega(file_path):
     """Upload file to Mega cloud storage"""
-    print(f"Uploading to Mega...")
+    print("Uploading to Mega...")
     
     uploader = SimpleMegaUploader()
     uploader.login(MEGA_EMAIL, MEGA_PASSWORD)
@@ -255,22 +250,30 @@ def upload_to_mega(file_path):
 
 def send_email(backup_link, backup_file):
     """Send email notification with backup link"""
-    print(f"Sending email notification...")
+    print("Sending email notification...")
     
-    subject = f"MySQL Backup - {DB_NAME} - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    subject = "MySQL Backup - {} - {}".format(
+        DB_NAME,
+        datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    )
     
-    body = f"""
+    body = """
     MySQL Database Backup Completed
     
-    Database: {DB_NAME}
-    Backup File: {os.path.basename(backup_file)}
-    Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    Database: {}
+    Backup File: {}
+    Timestamp: {}
     
     Download Link (Mega):
-    {backup_link}
+    {}
     
     This is an automated backup notification.
-    """
+    """.format(
+        DB_NAME,
+        os.path.basename(backup_file),
+        datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        backup_link
+    )
     
     msg = MIMEMultipart()
     msg['From'] = EMAIL_FROM
@@ -284,9 +287,9 @@ def send_email(backup_link, backup_file):
         server.login(EMAIL_FROM, EMAIL_PASSWORD)
         server.send_message(msg)
         server.quit()
-        print(f"Email sent to {EMAIL_TO}")
+        print("Email sent to {}".format(EMAIL_TO))
     except Exception as e:
-        print(f"Error sending email: {e}")
+        print("Error sending email: {}".format(e))
         raise
 
 
@@ -308,7 +311,7 @@ def main():
         print("=" * 50)
         
     except Exception as e:
-        print(f"Backup process failed: {e}")
+        print("Backup process failed: {}".format(e))
         exit(1)
 
 
