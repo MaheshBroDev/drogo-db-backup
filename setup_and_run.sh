@@ -19,18 +19,40 @@ fi
 
 echo "Detected OS: $OS"
 
-# Check if Python 3 is installed
-if ! command -v python3 &> /dev/null; then
-    echo "Error: Python 3 is not installed."
+# Find suitable Python version (3.7+)
+PYTHON_CMD=""
+for cmd in python3.11 python3.10 python3.9 python3.8 python3.7 python3; do
+    if command -v $cmd &> /dev/null; then
+        VERSION=$($cmd -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
+        MAJOR=$(echo $VERSION | cut -d. -f1)
+        MINOR=$(echo $VERSION | cut -d. -f2)
+        
+        if [ "$MAJOR" -ge 3 ] && [ "$MINOR" -ge 7 ]; then
+            PYTHON_CMD=$cmd
+            echo "Found suitable Python: $cmd (version $VERSION)"
+            break
+        fi
+    fi
+done
+
+if [ -z "$PYTHON_CMD" ]; then
+    echo "Error: Python 3.7 or higher is required."
+    echo "Current Python version is too old."
+    echo ""
     if [ "$OS" = "linux" ]; then
-        echo "Install with: sudo apt-get install python3 python3-pip"
+        echo "Install Python 3.7+ on Ubuntu 16.04:"
+        echo "  sudo apt-get install software-properties-common"
+        echo "  sudo add-apt-repository ppa:deadsnakes/ppa"
+        echo "  sudo apt-get update"
+        echo "  sudo apt-get install python3.7 python3.7-venv python3.7-dev"
+        echo ""
+        echo "Or on Ubuntu 18.04+:"
+        echo "  sudo apt-get install python3 python3-pip python3-venv"
     elif [ "$OS" = "macos" ]; then
         echo "Install with: brew install python3"
     fi
     exit 1
 fi
-
-echo "Python 3 found: $(python3 --version)"
 
 # Remove incomplete venv if exists
 if [ -d "venv" ] && [ ! -f "venv/bin/activate" ]; then
@@ -45,24 +67,24 @@ if [ ! -d "venv" ]; then
     # Method 1: Try virtualenv (most reliable for older systems)
     if command -v virtualenv &> /dev/null; then
         echo "Using virtualenv..."
-        virtualenv -p python3 venv
-    # Method 2: Try python3 -m venv
-    elif python3 -m venv venv 2>/dev/null; then
-        echo "Using python3 -m venv..."
+        virtualenv -p $PYTHON_CMD venv
+    # Method 2: Try python -m venv
+    elif $PYTHON_CMD -m venv venv 2>/dev/null; then
+        echo "Using $PYTHON_CMD -m venv..."
     # Method 3: Install virtualenv and try again
     else
         echo "Standard venv not available. Installing virtualenv..."
         
-        # Try pip3
-        if command -v pip3 &> /dev/null; then
-            pip3 install --user virtualenv
+        # Try pip
+        if $PYTHON_CMD -m pip --version &> /dev/null; then
+            $PYTHON_CMD -m pip install --user virtualenv
             if [ -f "$HOME/.local/bin/virtualenv" ]; then
-                $HOME/.local/bin/virtualenv -p python3 venv
+                $HOME/.local/bin/virtualenv -p $PYTHON_CMD venv
             elif command -v virtualenv &> /dev/null; then
-                virtualenv -p python3 venv
+                virtualenv -p $PYTHON_CMD venv
             fi
         else
-            echo "Error: pip3 not found. Please install python3-pip:"
+            echo "Error: pip not found. Please install pip:"
             if [ "$OS" = "linux" ]; then
                 echo "  sudo apt-get install python3-pip python3-venv"
             fi
@@ -78,11 +100,11 @@ if [ ! -d "venv" ]; then
         if [ "$OS" = "linux" ]; then
             echo "Please install required packages:"
             echo "  sudo apt-get update"
-            echo "  sudo apt-get install python3 python3-pip python3-venv"
+            echo "  sudo apt-get install python3.7 python3.7-pip python3.7-venv"
             echo ""
             echo "Or install virtualenv manually:"
-            echo "  pip3 install --user virtualenv"
-            echo "  ~/.local/bin/virtualenv -p python3 venv"
+            echo "  $PYTHON_CMD -m pip install --user virtualenv"
+            echo "  ~/.local/bin/virtualenv -p $PYTHON_CMD venv"
         fi
         exit 1
     fi

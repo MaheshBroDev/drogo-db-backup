@@ -2,8 +2,10 @@
 """
 MySQL Database Backup Script
 Backs up MySQL database, compresses it, uploads to Mega, and sends email notification
+Requires Python 3.7+
 """
 
+from __future__ import annotations
 import os
 import subprocess
 import datetime
@@ -13,7 +15,23 @@ from email.mime.multipart import MIMEMultipart
 from pathlib import Path
 import gzip
 import shutil
-from mega import Mega
+import sys
+
+# Check Python version
+if sys.version_info < (3, 7):
+    print("Error: This script requires Python 3.7 or higher.")
+    print(f"Current version: {sys.version}")
+    print("\nPlease upgrade Python:")
+    print("  Ubuntu/Debian: sudo apt-get install python3.7 python3.7-venv")
+    print("  Or use pyenv to install a newer Python version")
+    sys.exit(1)
+
+try:
+    from mega import Mega
+except ImportError:
+    print("Error: mega.py library not installed.")
+    print("Please run: pip install mega.py")
+    sys.exit(1)
 
 # Configuration
 DB_HOST = os.getenv('DB_HOST', 'localhost')
